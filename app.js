@@ -6,7 +6,8 @@ var logger = require('morgan');
 const http = require ('http');
 const {connectToMongoDB} = require ('./config/db');
 var indexRouter = require('./routes/index');
-var usersRouter = require('./routes/users');
+var usersRouter = require('./routes/users.routes');
+var reservationRouter = require('./routes/reservation.routes');
 var app = express();
 
 require ('dotenv').config();
@@ -32,9 +33,6 @@ app.use(function(err, req, res, next) {
   res.locals.message = err.message;
   res.locals.error = req.app.get('env') === 'development' ? err : {};
 
-  // render the error page
-  res.status(err.status || 500);
-  res.render('error');
 });
 
 const server = http.createServer(app);
