@@ -52,6 +52,19 @@ module.exports.createUser = async (req, res) => {
   }
 };
 
+module.exports.createUserAdmin = async (req, res) => {
+  try {
+    const { name, email, password ,tel} = req.body;
+    const newUser = new userModel({ name, email, password, tel ,role:"admin"});
+    await newUser.save();
+    res
+      .status(201)
+      .json({ message: "User created successfully", data: newUser });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 module.exports.deleteUser = async (req, res) => {
   try {
     const userId = req.params.id;
@@ -84,3 +97,4 @@ module.exports.UpdateUser = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 }
+
