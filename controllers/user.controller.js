@@ -97,4 +97,16 @@ module.exports.UpdateUser = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 }
-
+module.exports.createUserWithImage = async (req, res) => {
+  try {
+    const {email, password } = req.body;
+    const user_image = req.file.filename ;
+    const newUser = new userModel({ email, password, user_image });
+    await newUser.save();
+    res
+      .status(201)
+      .json({ message: "User created successfully", data: newUser });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};

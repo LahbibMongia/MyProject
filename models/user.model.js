@@ -22,7 +22,58 @@ const userSchema = new mongoose.Schema(
                     ], 
                 },
         adresse : {type : String},
-        role : { type : String, enum: ["admin","user"], default: "user"}
+        role : { type : String, enum: ["admin","babysitter","parent"], default: "parent"},
+        image: {
+            type: String,
+            default: "default.jpg"
+        },
+
+        // Parent specific
+        preferences: {
+            type: String,
+            required: function () {
+            return this.role === 'parent';
+            }
+        },
+
+        // Babysitter specific
+        experience: {
+            type: String,
+            required: function () {
+            return this.role === 'babysitter';
+            }
+        },
+        availability: {
+            type: String,
+            required: function () {
+            return this.role === 'babysitter';
+            }
+        },
+        hourlyRate: {
+            type: Number,
+            required: function () {
+            return this.role === 'babysitter';
+            }
+        },
+        certif: {
+            type: String,
+            required: function () {
+            return this.role === 'babysitter';
+            }
+
+        },
+        score: {
+            type: Number,
+            default: 0
+        },
+        
+        // Admin specific
+        adminCode: {
+            type: String,
+            required: function () {
+            return this.role === 'admin';
+            }
+        }
     },
     {timestamps:true }
 );
