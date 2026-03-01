@@ -28,6 +28,8 @@ const userSchema = new mongoose.Schema(
             default: "default.jpg"
         },
 
+        
+
         // Parent specific
         preferences: {
             type: String,
