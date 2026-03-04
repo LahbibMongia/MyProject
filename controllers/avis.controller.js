@@ -61,4 +61,40 @@ const avisController = {
     }
 }
 
+// 
+module.exports.AssignAvisToParent = async (req, res) => {
+  try {
+    const avisId = req.params.avisId;
+    const parentId = req.params.parentId;
+
+    const avisData = await Avis.findById(avisId);
+
+    if (!avisData) {
+      throw new Error("Avis not found");
+    }
+
+    // check if already assigned
+    if (avisData.parent && avisData.parent.toString() === parentId) {
+      throw new Error("Avis already assigned to parent");
+    }
+
+    const UpdatedAvis = await Avis.findByIdAndUpdate(
+      avisId,
+      { parent: parentId },
+      { new: true }
+    );
+
+    res.status(200).json({
+      message: "Avis assigned successfully",
+      data: UpdatedAvis
+    });
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// POST /parent/:parentId/avis
+// → create avis with parent field set immediately
+
 module.exports = avisController;

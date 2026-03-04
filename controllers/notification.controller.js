@@ -56,4 +56,44 @@ const notificationController = {
     }
 }
 
+notificationSchema.index({ user: 1 });
+
+module.exports.AssignNotificationToUser = async (req, res) => {
+  try {
+    const notificationId = req.params.notificationId;
+    const userId = req.params.userId;
+
+    const notificationData = await Notification.findById(notificationId);
+
+    if (!notificationData) {
+      throw new Error("Notification not found");
+    }
+
+    // check if already assigned
+    if (notificationData.user && notificationData.user.toString() === userId) {
+      throw new Error("Notification already assigned to user");
+    }
+
+    // Update this notification only if it’s not already assigned to this user.
+    const UpdatedNotification = await Notification.findOneAndUpdate( 
+      { _id: notificationId, user: { $ne: userId } },
+      { user: userId },
+      { new: true }
+    );
+
+    if (!UpdatedNotification) {
+      throw new Error("Notification not found or already assigned to user");
+    }
+
+    res.status(200).json({
+      message: "Notification assigned successfully",
+      data: UpdatedNotification
+    });
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+///assign/:notificationId/:userId
+
 module.exports = notificationController;
