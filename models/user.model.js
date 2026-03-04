@@ -28,7 +28,7 @@ const userSchema = new mongoose.Schema(
             default: "default.jpg"
         },
 
-        
+
 
         // Parent specific
         preferences: {
@@ -68,7 +68,7 @@ const userSchema = new mongoose.Schema(
             type: Number,
             default: 0
         },
-        
+
         // Admin specific
         adminCode: {
             type: String,
@@ -85,6 +85,5 @@ const userSchema = new mongoose.Schema(
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
 });
-
     const User = mongoose.model('User', userSchema);
     module.exports = User; 

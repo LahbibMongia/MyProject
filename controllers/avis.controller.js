@@ -1,27 +1,24 @@
 const Avis = require('../models/avis.model');
 
 const avisController = {
-    createAvis : async (req, res) => {
+    createAvis: async (req, res) => {
         try {
-            const avis = new Avis(req.body);
-            await avis.save();
+            const { parent, babysitter, note, commentaire } = req.body;
+
+            const avis = await Avis.create({
+                parent,
+                babysitter,
+                note,
+                commentaire
+            });
+
             res.status(201).json(avis);
+
         } catch (error) {
             res.status(500).json({ message: error.message });
         }
     },
-    getAvis : async (req, res) => {
-        try {
-            const avis = await Avis.findById(req.params.id);
-            if (!avis) {
-                return res.status(404).json({ message: 'Avis not found' });
-            }
-            res.status(200).json(avis);
-        } catch (error) {
-            res.status(500).json({ message: error.message });
-        }
-    },
-    getAvisByParent : async (req, res) => {
+    getAvisByParent: async (req, res) => {
         try {
             const avis = await Avis.find({ parent: req.params.parentId });
             res.status(200).json(avis);
@@ -29,7 +26,7 @@ const avisController = {
             res.status(500).json({ message: error.message });
         }
     },
-    getAvisByBabysitter : async (req, res) => {
+    getAvisByBabysitter: async (req, res) => {
         try {
             const avis = await Avis.find({ babysitter: req.params.babysitterId });
             res.status(200).json(avis);
@@ -37,7 +34,7 @@ const avisController = {
             res.status(500).json({ message: error.message });
         }
     },
-    updateAvis : async (req, res) => {
+    updateAvis: async (req, res) => {
         try {
             const avis = await Avis.findById(req.params.id);
             if (!avis) {
@@ -50,7 +47,7 @@ const avisController = {
             res.status(500).json({ message: error.message });
         }
     },
-    deleteAvis : async (req, res) => {
+    deleteAvis: async (req, res) => {
         try {
             const avis = await Avis.findById(req.params.id);
             if (!avis) {
