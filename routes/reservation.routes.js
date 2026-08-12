@@ -1,14 +1,20 @@
-var express = require('express');
-var router = express.Router();
-const reservationController = require('../controllers/reservation.contoller');
+// routes/reservation.routes.js
 
-router.post('/createReservation', reservationController.createReservation);
+const express = require("express");
+const router = express.Router();
 
-router.get('/getReservationsByBabysitter/:babysitterId', reservationController.getReservationsByBabysitter);
-router.get('/getReservationsByParent/:parentId', reservationController.getReservationsByParent);
-router.get('/getReservation/:id', reservationController.getReservation);
+const reservationController = require("../controllers/reservation.contoller");
 
-router.put('/updateReservation/:id', reservationController.updateReservation);
-router.delete('/deleteReservation/:id', reservationController.deleteReservation);
+// Fetch all reservations for a specific parent (to render on their profile)
+router.get(
+    "/parent/:parentId",
+    reservationController.getReservationsByParent
+);
+
+// Cancel a reservation by ID (updates status to 'cancelled')
+router.patch(
+    "/:id/cancel",
+    reservationController.cancelReservation
+);
 
 module.exports = router;

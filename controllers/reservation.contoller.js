@@ -1,146 +1,377 @@
-const Reservation = require ('../models/reservation.model');
-const Notification = require ('../models/notification.model');
-const User = require ('../models/user.model');
+// controllers/reservation.controller.js
 
-const existingReservation = async (req, res) => {
-    try {
-        const { babysitter, date } = req.body;  
-        const reservation = await Reservation.findOne({
-            babysitter,
-            date,
-            status: { $in: ['pending', 'confirmed'] }
-        });
-        if (reservation) {
-            return res.status(400).json({ message: "Reservation already exists" });
-        }
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
-}
+const Reservation = require("../models/reservation.model");
+const User = require("../models/user.model");
+const Notification = require("../models/notification.model"); // Imported for automated status alerts
 
-const createReservation = async (req, res) => {
+/* =======================================================
+   1. CREATE RESERVATION (POST /api/reservations)
+======================================================= */
+module.exports.createReservation = async (req, res) => {
   try {
-    const { date, parent, babysitter } = req.body;
+    const { parent, babysitter, date, timeSlot, details } = req.body;
 
-    // 1 Validate users
+    // Validate parent existence and role
     const parentUser = await User.findById(parent);
+    if (!parentUser || parentUser.role !== "parent") {
+      return res.status(404).json({
+        success: false,
+        message: "Parent profile not found.",
+      });
+    }
+
+    // Validate babysitter existence and role
     const babysitterUser = await User.findById(babysitter);
-
-    if (!parentUser || parentUser.role !== 'parent') {
-      return res.status(400).json({ message: "Invalid parent" });
+    if (!babysitterUser || babysitterUser.role !== "babysitter") {
+      return res.status(404).json({
+        success: false,
+        message: "Babysitter profile not found.",
+      });
     }
 
-    if (!babysitterUser || babysitterUser.role !== 'babysitter') {
-      return res.status(400).json({ message: "Invalid babysitter" });
-    }
-
-    // 2 Create reservation
-    const reservation = await Reservation.create({
+    // Dynamic slot duplicate check: blocks double-bookings on the same day + slot
+    const existingReservation = await Reservation.findOne({
+      babysitter,
       date,
-      parent,
-      babysitter
+      timeSlot,
+      status: { $in: ["pending", "confirmed"] },
     });
 
-    // Create notification (no second response!)
+    if (existingReservation) {
+      return res.status(409).json({
+        success: false,
+        message: "This babysitter already has a pending or confirmed booking for this time slot.",
+      });
+    }
+
+    const newReservation = await Reservation.create({
+      parent,
+      babysitter,
+      date,
+      timeSlot,
+      details,
+    });
+
+    // Notify Babysitter of new pending request
     await Notification.create({
       user: babysitter,
-      type: 'Reservation',
-      message: `You have a new reservation from ${parentUser.nom}`,
+      type: "reservation",
+      message: `You have received a new reservation request from ${parentUser.name}.`,
     });
 
-    res.status(201).json(reservation);
+    return res.status(201).json({
+      success: true,
+      message: "Reservation created successfully.",
+      data: newReservation,
+    });
 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 };
 
-const getReservation = async (req, res) => {
-    try {
-        const reservation = await Reservation.findById(req.params.id);
-        res.status(200).json(reservation);
-    } catch (error) {
-        res.status(500).json({ message: error.message });
+/* =======================================================
+   2. ACCEPT RESERVATION (PUT /api/reservations/:id/accept)
+======================================================= */
+module.exports.acceptReservation = async (req, res) => {
+  try {
+    const reservation = await Reservation.findById(req.params.id);
+
+    if (!reservation) {
+      return res.status(404).json({
+        success: false,
+        message: "Reservation not found.",
+      });
     }
-}
 
+    reservation.status = "confirmed";
+    await reservation.save();
 
-const updateReservation = async (req, res) => {
-    try {
-        const reservation = await Reservation.findByIdAndUpdate(req.params.id, req.body, { new: true });
-        res.status(200).json(reservation);
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
-}
+    // Alert parent of acceptance
+    await Notification.create({
+      user: reservation.parent,
+      type: "reservation",
+      message: "Your reservation has been confirmed.",
+    });
 
-const deleteReservation = async (req, res) => {
-    try {
-        const reservation = await Reservation.findByIdAndDelete(req.params.id);
-        res.status(200).json(reservation);
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
-}
+    return res.status(200).json({
+      success: true,
+      message: "Reservation accepted successfully.",
+      data: reservation,
+    });
 
-    const getReservationsByBabysitter = async (req, res) => {
-    try {
-        const { babysitterId } = req.params;
-
-        // Optional security check: verify role
-        const babysitter = await User.findById(babysitterId);
-
-        if (!babysitter || babysitter.role !== 'babysitter') {
-        return res.status(404).json({
-            message: "Babysitter not found"
-        });
-        }
-
-        const reservations = await Reservation.find({
-        babysitter: babysitterId
-        })
-        .populate('parent', 'nom prenom adresse')
-        .sort({ createdAt: -1 });
-
-        res.status(200).json(reservations);
-
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
-    };
-
-    const getReservationsByParent = async (req, res) => {
-        try {
-            const { parentId } = req.params;
-            const reservations = await Reservation.find({ parent: parentId }).sort({ createdAt: -1 });
-            res.status(200).json(reservations);
-        } catch (error) {
-            res.status(500).json({ message: error.message });
-        }
-    };
-
-    reservationSchema.index({ babysitter: 1, status: 1 }); //MongoDB jumps directly to babysitter X, and inside that small slice it filters by status. Fast. Surgical. Elegant.
-
-module.exports = { createReservation, getReservation, updateReservation, deleteReservation, getReservationsByBabysitter, getReservationsByParent };
-
-
-module.exports.AssignReservationToParent = async (req, res) => {
-  try{
-    const reservationId = req.params.id;
-    const userId = req.params.id;
-    const reservationData = await reservation.findById (reservationId);
-    const reservations = await Reservation.find({ parent: userId })
-    if (!reservationData) {
-      throw new Error("Reservation not found");
-    }
-    if (reservations.includes(reservationData)) {
-      throw new Error("Reservation already assigned to babysitter");
-    }
-    const UpdatedReservation = await reservationData.findByIdAndUpdate(  reservationId, {parent  : userId}, {new: true});
-    res
-      .status(200)
-      .json({ message: "Reservation assigned successfully", data: UpdatedReservation });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
-}
+};
+
+/* =======================================================
+   3. DECLINE RESERVATION (PUT /api/reservations/:id/decline)
+======================================================= */
+module.exports.declineReservation = async (req, res) => {
+  try {
+    const reservation = await Reservation.findById(req.params.id);
+
+    if (!reservation) {
+      return res.status(404).json({
+        success: false,
+        message: "Reservation not found.",
+      });
+    }
+
+    reservation.status = "cancelled";
+    await reservation.save();
+
+    // Alert parent of decline
+    await Notification.create({
+      user: reservation.parent,
+      type: "reservation",
+      message: "Your reservation has been declined.",
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Reservation declined successfully.",
+      data: reservation,
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+/* =======================================================
+   4. CANCEL RESERVATION (PUT /api/reservations/:id/cancel)
+======================================================= */
+module.exports.cancelReservation = async (req, res) => {
+  try {
+    const reservation = await Reservation.findById(req.params.id);
+
+    if (!reservation) {
+      return res.status(404).json({
+        success: false,
+        message: "Reservation not found.",
+      });
+    }
+
+    // Safety constraint check: only pending reservations can be cancelled
+    if (reservation.status !== "pending") {
+      return res.status(400).json({
+        success: false,
+        message: "Only pending reservations can be cancelled.",
+      });
+    }
+
+    reservation.status = "cancelled";
+    await reservation.save();
+
+    // Alert Babysitter that parent pulled out
+    await Notification.create({
+      user: reservation.babysitter,
+      type: "reservation",
+      message: "A reservation has been cancelled by the parent.",
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Reservation cancelled successfully.",
+      data: reservation,
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+/* =======================================================
+   5. GET ALL RESERVATIONS (GET /api/reservations)
+======================================================= */
+module.exports.getAllReservations = async (req, res) => {
+  try {
+    const reservations = await Reservation.find()
+      .populate("parent", "name email phone")
+      .populate("babysitter", "name hourlyRate");
+
+    return res.status(200).json({
+      success: true,
+      message: "All reservations retrieved successfully.",
+      data: reservations,
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+/* =======================================================
+   6. GET RESERVATION BY ID (GET /api/reservations/:id)
+======================================================= */
+module.exports.getReservationById = async (req, res) => {
+  try {
+    const reservation = await Reservation.findById(req.params.id)
+      .populate("parent", "name email phone")
+      .populate("babysitter", "name hourlyRate");
+
+    if (!reservation) {
+      return res.status(404).json({
+        success: false,
+        message: "Reservation not found.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Reservation details retrieved successfully.",
+      data: reservation,
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+/* =======================================================
+   7. GET RESERVATIONS BY PARENT (GET /api/reservations/parent/:parentId)
+======================================================= */
+module.exports.getReservationsByParent = async (req, res) => {
+  try {
+    const { parentId } = req.params;
+
+    // Parent identity validation
+    const parent = await User.findById(parentId);
+    if (!parent || parent.role !== "parent") {
+      return res.status(404).json({
+        success: false,
+        message: "Parent profile not found.",
+      });
+    }
+
+    // Fetches parent's reservations, sorted by newest first, populating babysitter info
+    const reservations = await Reservation.find({ parent: parentId })
+      .populate("babysitter", "name hourlyRate phone image profilePicture")
+      .sort({ date: -1 });
+
+    return res.status(200).json({
+      success: true,
+      message: "Parent reservations retrieved successfully.",
+      data: reservations,
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+/* =======================================================
+   8. GET RESERVATIONS BY BABYSITTER (GET /api/reservations/babysitter/:babysitterId)
+======================================================= */
+module.exports.getReservationsByBabysitter = async (req, res) => {
+  try {
+    const { babysitterId } = req.params;
+
+    // Babysitter identity validation
+    const babysitter = await User.findById(babysitterId);
+    if (!babysitter || babysitter.role !== "babysitter") {
+      return res.status(404).json({
+        success: false,
+        message: "Babysitter profile not found.",
+      });
+    }
+
+    const reservations = await Reservation.find({ babysitter: babysitterId })
+      .populate("parent", "name phone adresse image");
+
+    return res.status(200).json({
+      success: true,
+      message: "Babysitter reservations retrieved successfully.",
+      data: reservations,
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+/* =======================================================
+   9. UPDATE RESERVATION DETAILS (PUT /api/reservations/:id)
+======================================================= */
+module.exports.updateReservation = async (req, res) => {
+  try {
+    const updatedReservation = await Reservation.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedReservation) {
+      return res.status(404).json({
+        success: false,
+        message: "Reservation not found.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Reservation updated successfully.",
+      data: updatedReservation,
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+/* =======================================================
+   10. HARD DELETE RESERVATION (DELETE /api/reservations/:id)
+======================================================= */
+module.exports.deleteReservation = async (req, res) => {
+  try {
+    const deletedReservation = await Reservation.findByIdAndDelete(req.params.id);
+
+    if (!deletedReservation) {
+      return res.status(404).json({
+        success: false,
+        message: "Reservation not found.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Reservation deleted from database successfully.",
+      data: deletedReservation,
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};

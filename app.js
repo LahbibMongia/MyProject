@@ -12,6 +12,8 @@ var notificationRouter = require('./routes/notification.routes');
 var avisRouter = require('./routes/avis.routes');
 var recommendationRouter = require('./routes/recommendation.routes');
 
+const cors = require('cors');
+
 var app = express();
 
 require('dotenv').config();
@@ -21,10 +23,11 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
+app.use(cors({origin: 'http://localhost:3000'}));
 
 app.use('/index', indexRouter);
 app.use('/users', usersRouter);
-app.use('/reservation', reservationRouter);
+app.use('/api/reservations', reservationRouter);
 app.use('/notification', notificationRouter);
 app.use('/avis', avisRouter);
 app.use('/recommendation', recommendationRouter);

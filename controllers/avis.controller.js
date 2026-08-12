@@ -18,6 +18,18 @@ const avisController = {
             res.status(500).json({ message: error.message });
         }
     },
+
+    getAvis: async (req, res) => {
+        try {
+            const avis = await Avis.findById(req.params.id);
+            if (!avis) {
+                return res.status(404).json({ message: 'Avis not found' });
+            }
+            res.status(200).jsààon(avis);
+        } catch (error) {
+            res.status(500).json({ message: error.message });
+        }
+    },
     getAvisByParent: async (req, res) => {
         try {
             const avis = await Avis.find({ parent: req.params.parentId });
