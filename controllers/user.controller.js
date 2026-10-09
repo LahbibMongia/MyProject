@@ -275,8 +275,28 @@ module.exports.createUser = async (req, res) => {
   try {
     console.log("CREATE USER APPELÉ");
     const newUser = await userModel.create(req.body);
+
+    // --- DIAGNOSTIC TEMPORAIRE (à retirer ensuite) ---
+    const conn = userModel.db;
+    const found = await userModel.collection.findOne(
+      { _id: newUser._id },
+      { projection: { _id: 1, email: 1 } }
+    );
+    console.log("[PERSIST]", {
+      host: conn.host,
+      port: conn.port,
+      db: conn.name,
+      collection: userModel.collection.collectionName,
+      id: String(newUser._id),
+      email: newUser.email,
+      foundAfterSave: !!found,
+      totalUsers: await userModel.countDocuments(),
+    });
+    // --- FIN DIAGNOSTIC ---
+
     res.status(201).json({ message: "User created successfully", data: newUser });
   } catch (error) {
+    console.error("[CREATE USER ERROR]", error.message);
     res.status(500).json({ error: error.message });
   }
 };
