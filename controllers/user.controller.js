@@ -1,6 +1,7 @@
 const userModel = require("../models/user.model");
 const Booking = require("../models/reservation.model"); 
 const jwt = require("jsonwebtoken");
+const bcrypt = require("bcrypt"); // ensure bcrypt or bcryptjs is installed
 
 const maxAge = 3 * 24 * 60 * 60; // 3 days in seconds
 const secretKey = process.env.JWT_SECRET || "mySecretKey";
@@ -44,7 +45,7 @@ module.exports.register = async (req, res) => {
       return res.status(409).json({ error: "Email is already registered." });
     }
 
-    // 3. Create user (password is automatically hashed by Mongoose schema pre('save') hook)
+    // 3. Create user
     const newUser = await userModel.create({
       name,
       email,
@@ -84,7 +85,24 @@ module.exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    const user = await userModel.login(email, password);
+    if (!email || !password) {
+      return res.status(400).json({ error: "Please provide both email and password." });
+    }
+
+    const user = await userModel.findOne({ email });
+    if (!user) {
+      return res.status(401).json({ error: "Invalid email or password." });
+    }
+
+    // Compare passwords (handles pre-hashed passwords or direct schema comparison methods)
+    const auth = typeof user.login === 'function' 
+      ? await user.login(password) 
+      : await bcrypt.compare(password, user.password);
+
+    if (!auth) {
+      return res.status(401).json({ error: "Invalid email or password." });
+    }
+
     const token = createToken(user._id, user.role);
 
     res.cookie("jwt", token, {
@@ -96,11 +114,9 @@ module.exports.login = async (req, res) => {
       message: "Login successful",
       token,
       user,
-      role: user.role,
     });
-
   } catch (error) {
-    res.status(401).json({ error: error.message });
+    res.status(500).json({ error: error.message });
   }
 };
 
@@ -111,12 +127,22 @@ module.exports.getBabysitters = async (req, res) => {
   try {
     const { search, maxRate } = req.query;
 
-    let query = { role: "babysitter", block: false };
+    let query = { 
+      role: { $regex: /^babysitter$/i },
+      $or: [
+        { block: false },
+        { block: { $exists: false } }
+      ]
+    };
 
     if (search) {
-      query.$or = [
-        { name: { $regex: search, $options: "i" } },
-        { adresse: { $regex: search, $options: "i" } },
+      query.$and = [
+        {
+          $or: [
+            { name: { $regex: search, $options: "i" } },
+            { adresse: { $regex: search, $options: "i" } },
+          ],
+        }
       ];
     }
 
@@ -171,7 +197,6 @@ module.exports.createBooking = async (req, res) => {
       return res.status(404).json({ error: "Babysitter not found." });
     }
 
-    // Double-booking conflict check
     const conflict = await Booking.findOne({
       sitterId,
       date: new Date(date),
@@ -185,7 +210,6 @@ module.exports.createBooking = async (req, res) => {
       return res.status(409).json({ error: "The sitter is already booked for this time slot." });
     }
 
-    // Cost calculation
     const startHour = parseFloat(startTime.split(":")[0]) + parseFloat(startTime.split(":")[1]) / 60;
     const endHour = parseFloat(endTime.split(":")[0]) + parseFloat(endTime.split(":")[1]) / 60;
     const durationHours = Math.max(0, endHour - startHour);
@@ -249,6 +273,7 @@ module.exports.getUserById = async (req, res) => {
 ======================================================= */
 module.exports.createUser = async (req, res) => {
   try {
+    console.log("CREATE USER APPELÉ");
     const newUser = await userModel.create(req.body);
     res.status(201).json({ message: "User created successfully", data: newUser });
   } catch (error) {

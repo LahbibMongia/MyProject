@@ -38,16 +38,21 @@ app.use(function (req, res, next) {
 });
 
 // error handler
-app.use(function (err, req, res, next) {
-  // set locals, only providing error in development
-  res.locals.message = err.message;
-  res.locals.error = req.app.get('env') === 'development' ? err : {};
 
+app.use(function (err, req, res, next) {
+  const status = err.status || err.statusCode || 500;
+
+  res.status(status).json({
+    message: err.message || 'Internal Server Error',
+    ...(req.app.get('env') === 'development' && {
+      stack: err.stack
+    })
+  });
 });
 
 const server = http.createServer(app);
-server.listen(process.env.PORT, () => {
+server.listen(process.env.PORT, '0.0.0.0', () => {
   connectToMongoDB();
-  console.log(`Server is running on http://localhost:${process.env.PORT}`);
+  console.log(`Server is running on http://0.0.0.0:${process.env.PORT}`);
 });
 module.exports = app;
